@@ -20,6 +20,7 @@ module Fluent::Plugin
         :connect_timeout => open_timeout,
         :read_timeout => read_timeout
       }
+      @log.debug "VMware Log Intelligence Timeout Options - connect timeout #{open_timeout}, read timeout #{read_timeout}"
         
       @conn = HTTP.persistent(endpoint_url)
         .headers(headers)
@@ -29,19 +30,23 @@ module Fluent::Plugin
       @last_429_time = nil
     end
 
-    def check_quota
+    def quota_reached
+      @log.debug "Checking Rate Limit Quota"
       if @last_429_time
-        if (Time.new - @last_429_time) < 600
-          return false
+        @timediff = Time.new - @last_429_time
+        if timediff < 600
+          @log.debug "Within Quota limit -  #{timediff} seconds remaining"
+          return true
         end
 
         @last_429_time = nil
       end
-      return true
+      return false
     end
 
     def post(data)
-      if !check_quota
+      if quota_reached
+        @log.debug "Rate limit quota reached"
         return
       end
 
@@ -54,6 +59,7 @@ module Fluent::Plugin
         else
           @last_429_time = nil
         end
+        @log.debug "Response code #{response.code}"
         
         if @statuses.include? response.code.to_i
           # Raise an exception so that fluent will retry based on the configurations.
