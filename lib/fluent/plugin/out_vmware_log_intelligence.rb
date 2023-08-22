@@ -56,6 +56,7 @@ module Fluent::Plugin
       headers = {}
       conf.elements.each do |element|
         if @http_compress
+          @log.debug "VMware Log Intelligence Compression enabled"
           set_gzip_header(element)
         end
         if element.name == 'headers'
@@ -193,10 +194,13 @@ module Fluent::Plugin
       end
     
       if @http_compress
+        @log.debug "VMware Log Intelligence sending compressed message"
         gzip_body = Zlib::GzipWriter.new(StringIO.new)
         gzip_body << data.to_json
+        @last_request_time = Time.now.to_f
         @http_client.post(gzip_body.close.string)
-      else  
+      else
+        @log.debug "VMware Log Intelligence sending uncompressed message"
         @last_request_time = Time.now.to_f
         @http_client.post(JSON.dump(data))
       end
